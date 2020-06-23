@@ -1,0 +1,13 @@
+[package]
+name = "adxl313-rs"
+description = "A platform agnostic driver to interface with the ADXL313 (accelerometer) through SPI"
+version = "0.0.1"
+authors = ["Michael van Niekerk <mvniekerk@chazaqdev.com>"]
+edition = "2018"
+categories  = ["embedded", "hardware-support", "no-std"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embedded-hal = "~0.2"
+accelerometer = "~0.11"
