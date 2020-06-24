@@ -7,7 +7,7 @@ keywords = ["embedded-hal-driver", "accelerometer", "MEMS", "analog-devices"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/mvniekerk/adxl313-rs"
 categories  = ["embedded", "hardware-support", "no-std"]
-version = "0.1.1"
+version = "0.1.2"
 readme = "README.md"
 
 [dependencies]

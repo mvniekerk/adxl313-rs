@@ -199,6 +199,13 @@ impl IrqMode {
     }
 }
 
+impl Default for IrqMode {
+    fn default() -> Self {
+        IrqMode::ACTIVE_HIGH
+    }
+}
+
+
 #[derive(Copy, Clone, Debug)]
 pub enum AcDcCoupling {
     DcCoupling = 0,
@@ -208,78 +215,5 @@ pub enum AcDcCoupling {
 impl AcDcCoupling {
     pub fn val(self) -> u8 {
         self as u8
-    }
-}
-
-impl Default for IrqMode {
-    fn default() -> Self {
-        IrqMode::ACTIVE_HIGH
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum FullResolutionMode {
-    DISABLED = 0,
-    ENABLED = 1
-}
-
-impl Default for FullResolutionMode {
-    fn default() -> Self {
-        FullResolutionMode::DISABLED
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum SelfTestMode {
-    DISABLED = 0,
-    ENABLED = 1
-}
-
-impl Default for SelfTestMode {
-    fn default() -> Self {
-        SelfTestMode::DISABLED
-    }
-}
-
-// pub struct DataFormatRegister {
-//     pub(crate) self_test_mode: SelfTestMode,
-//     pub(crate) spi_mode: SpiMode,
-//     pub(crate)
-// }
-
-pub struct Config {
-    pub(crate) range: Option<Range>,
-    pub(crate) odr: Option<OutputDataRate>,
-    pub(crate) spi_mode: Option<SpiMode>,
-    pub(crate) irq_mode: Option<IrqMode>,
-    pub(crate) full_resolution_mode: Option<FullResolutionMode>
-}
-
-/// ADXL313 configuration struct
-impl Config {
-    // Creates a new configuration object with default values
-    pub fn new() -> Self {
-        Config {
-            range: None,
-            odr: None,
-            spi_mode: None,
-            irq_mode: None,
-            full_resolution_mode: None
-        }
-    }
-
-    /// Sets the range configuration
-    /// Default is 2G
-    pub fn range(&mut self, range: Range) -> &mut Self {
-        self.range = Some(range);
-        self
-    }
-
-    /// Sets the output data rate and low pass filter settings.
-    /// Default data rate is `100 Hz`
-    /// The low pass filter is fixed as 1/4 of the output data rate (fs)
-    pub fn odr(&mut self, odr: OutputDataRate) -> &mut Self {
-        self.odr = Some(odr);
-        self
     }
 }
