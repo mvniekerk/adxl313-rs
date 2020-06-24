@@ -66,31 +66,58 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
         Ok(adxl313)
     }
 
+    /// The XID register stores a semiunique serial number that is generated from the device trim
+    /// and calibration process
     pub fn xid(&mut self) -> u8 {
         let mut buffer = [0u8; 1];
         self.read_reg(Register::XID.addr(), &mut buffer);
         buffer[0]
     }
 
+    /// Writing a value of 0x52 to Register 0x18 triggers the soft reset function of the ADXL313.
+    /// The soft reset returns the ADXL313 to the beginning of its power-on initialization routine,
+    /// clearing the configuration settings that were written to the memory map, which allows easy
+    /// reconfiguration of the ADXL313 device.
     pub fn soft_reset(&mut self) {
         let val = 0x52;
         self.write_reg(Register::SOFT_RESET.addr(), val);
     }
 
+    /// The OFSX, OFSY, and OFSZ registers are each eight bits and offer user set offset adjustments
+    /// in twos complement format, with a scale factor of 3.9 mg/LSB (that is, 0x7F = 0.5g). The
+    /// value stored in the offset registers is automatically added to the acceleration data,
+    /// and the resulting value is stored in the output data registers.
     pub fn offsets(&mut self, offset_x: u8, offset_y: u8, offset_z: u8) {
         self.write_reg(Register::OFSX.addr(), offset_x);
         self.write_reg(Register::OFSY.addr(), offset_y);
         self.write_reg(Register::OFSZ.addr(), offset_z);
     }
 
+    /// The THRESH_ACT register is eight bits and holds the thresholdvalue for detecting activity.
+    /// The data format is unsigned; therefore, the magnitude of the activity event is compared with
+    /// the value in the THRESH_ACT register. The scale factor is 15.625 mg/LSB. A value of 0 may
+    /// result in undesirable behavior if the activity interrupt is enabled.
     pub fn activity_threshold(&mut self, threshold: u8) {
         self.write_reg(Register::THRESH_ACT.addr(), threshold);
     }
 
+    /// The THRESH_INACT register is eight bits and holds the thresholdvalue for detecting
+    /// inactivity. The data format is unsigned; therefore, the magnitude of the inactivity event
+    /// is compared with the value in the THRESH_INACT register. The scale factor is 15.625 mg/LSB.
+    /// A value of 0 may result in undesirable behavior if the inactivity interrupt is enabled.
     pub fn inactivity_threshold(&mut self, threshold: u8) {
         self.write_reg(Register::THRESH_INACT.addr(), threshold);
     }
 
+    /// The TIME_INACT register is eight bits and contains an unsignedtime value. Acceleration must
+    /// be less than the value in the THRESH_INACT register for the amount of time represented by
+    /// TIME_INACT for inactivity to be declared. The scale factor is 1 sec/LSB. Unlike the other
+    /// interrupt functions, which use unfiltered data (see the Threshold section), the inactivity
+    /// function uses filtered output data. At least one output sample must be generated for the
+    /// inactivity interrupt to be triggered. This results in the function appearing unresponsive if
+    /// the TIME_INACT register is set to a value less than the time constant of the output data
+    /// rate. A value of 0 results in an interrupt when the output data is less than the value in
+    /// the THRESH_INACT register.
     pub fn inactivity_time(&mut self, time: u8) {
         self.write_reg(Register::TIME_INACT.addr(), time);
     }
@@ -200,6 +227,7 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
     pub fn is_10_bit(&self) -> bool {
         is_10_bit(self.output_data_rate.unwrap_or_default(), self.left_justified_data, self.full_resolution, self.range.unwrap_or_default())
     }
+
     /// Get the device ID
     pub fn get_device_id(&mut self) -> u32 {
         let mut output = [0u8; 3];
@@ -241,17 +269,13 @@ fn is_10_bit(odr: OutputDataRate, left_justified_data: bool, full_resolution: bo
 }
 
 #[inline]
-fn i32_from_2_u8_in_buf(buffer: &[u8; 6+1], offset: usize, right_shift: u16, mask: u16, sign_bit: u16) -> i32 {
-    let sign_mask = 1 << sign_bit;
+fn i32_from_2_u8_in_buf(buffer: &[u8; 6+1], offset: usize, right_shift: u16, mask: u16, sign_mask: u16) -> i32 {
     let r = ((buffer[offset + 1] as u16) << 8) | (buffer[offset] as u16);
     let mut r = (r >> right_shift) & mask;
     if r & sign_mask > 0 {
-        let sign_mask = !sign_mask;
-        r = (r & sign_mask) | (0b1000_0000_0000_0000);
+        r = (r & !sign_mask) | (0b1000_0000_0000_0000);
     }
-    let r = r as i16;
-    let r = r as i32;
-    r
+    (r as i16) as i32
 }
 
 const MASK_16BIT: u16 = 0b1111_1111_1111_1111;
@@ -261,11 +285,11 @@ const MASK_10BIT: u16 = 0b0000_0011_1111_1111;
 fn x_y_z_raw_values(buffer: [u8; 6+1], range: Range, is_10_bit: bool) -> (i32, i32, i32) {
     let right_shift = if is_10_bit { 6 - (range.val() as u16) } else { 0 };
     let mask = if is_10_bit { MASK_10BIT } else { MASK_16BIT };
-    let sign_bit = if is_10_bit { 9 } else { 15 };
+    let sign_mask = 1 << (if is_10_bit { 9 } else { 15 });
 
-    let x = i32_from_2_u8_in_buf(&buffer, 1, right_shift, mask, sign_bit);
-    let y = i32_from_2_u8_in_buf(&buffer, 3, right_shift, mask, sign_bit);
-    let z = i32_from_2_u8_in_buf(&buffer, 5, right_shift, mask, sign_bit);
+    let x = i32_from_2_u8_in_buf(&buffer, 1, right_shift, mask, sign_mask);
+    let y = i32_from_2_u8_in_buf(&buffer, 3, right_shift, mask, sign_mask);
+    let z = i32_from_2_u8_in_buf(&buffer, 5, right_shift, mask, sign_mask);
 
     (x, y, z)
 }
@@ -334,9 +358,9 @@ mod tests {
         ];
         let buf2: [u8; 6+1] = [
             0,
-            0b1010_0101, 0b1010_0101,
-            0b0101_1010, 0b0101_1010,
-            0b1000_0001, 0b1010_1100
+            0b1010_0101, 0b1010_0101, // X
+            0b0101_1010, 0b0101_1010, // Y
+            0b1000_0001, 0b1010_1100, // Z
         ];
         let is_10_bit_val = is_10_bit(ODR_100_HZ, false, false, Range::_0d5G);
         let (x, y, z) = x_y_z_raw_values(buf, Range::_0d5G, is_10_bit_val);
