@@ -1,7 +1,5 @@
 #![allow(non_camel_case_types)]
 
-use core::unicode::N;
-
 #[derive(Copy, Clone, Debug)]
 pub enum Range {
     _0d5G = 0b00,
@@ -24,6 +22,12 @@ impl From<Range> for f32 {
             Range::_2d0G => 2.048,
             Range::_4d0G => 4.096,
         }
+    }
+}
+
+impl Default for Range {
+    fn default() -> Self {
+        Range::_0d5G
     }
 }
 
@@ -117,23 +121,51 @@ impl InterruptSource {
     }
 
     pub fn data_ready(&self) -> bool {
-        (self.value & 0b1000_0000).into()
+        self.value & 0b1000_0000 != 0
     }
 
     pub fn activity(&self) -> bool {
-        (self.value & 0b0001_0000).into()
+        self.value & 0b0001_0000 != 0
     }
 
     pub fn inactivity(&self) -> bool {
-        (self.value & 0b0000_1000).into()
+        self.value & 0b0000_1000 != 0
     }
 
     pub fn watermark(&self) -> bool {
-        (self.value & 0b0000_0010).into()
+        self.value & 0b0000_0010 != 0
     }
 
     pub fn overrun(&self) -> bool {
-        (self.value & 0b0000_0001).into()
+        self.value & 0b0000_0001 != 0
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum FifoMode {
+    Bypass = 0b00,
+    Fifo = 0b01,
+    Stream = 0b10,
+    Trigger = 0b11
+}
+
+impl FifoMode {
+    pub fn val(self) -> u8 {
+        self as u8
+    }
+}
+
+pub struct FifoStatus {
+    pub triggered: bool,
+    pub samples: u8
+}
+
+impl FifoStatus {
+    pub fn new(val: u8) -> FifoStatus {
+        FifoStatus {
+            triggered: val & 0b1000_0000 != 0,
+            samples: (val & 0b0001_1111)
+        }
     }
 }
 
