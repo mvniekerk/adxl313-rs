@@ -1,5 +1,8 @@
 # ADXL313 embedded-hal SPI driver crate
 
+![](https://img.shields.io/crates/v/adxl313.svg)
+![](https://docs.rs/adxl313/badge.svg)
+
 Rust HAL implementation (using SPI drivers) for Analog Device's ADXL313 3-axis accelerometer.
 Based off the [adxl355 crate](https://github.com/JitterCompany/adxl355-rs)
 
