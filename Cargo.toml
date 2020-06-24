@@ -1,5 +1,5 @@
 [package]
-name = "adxl313-rs"
+name = "adxl313"
 description = "A platform agnostic driver to interface with the ADXL313 (accelerometer) through SPI"
 authors = ["Michael van Niekerk <mvniekerk@chazaqdev.com>"]
 edition = "2018"
