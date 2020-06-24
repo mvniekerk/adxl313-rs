@@ -22,7 +22,7 @@ use adxl313::{Adxl313, Accelerometer};
 let mut accelerometer = Adxl313::default(spi, cs)?;
 
 // start measurements
-accelerometer.start();
+accelerometer.start_measuring();
 
 // to get 3d accerlation data:
 let accel = accelerometer.acceleration()?;
