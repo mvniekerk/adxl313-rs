@@ -15,6 +15,7 @@ pub use accelerometer::{Accelerometer, RawAccelerometer, error, Error, vector::{
 pub use conf::*;
 use register::Register;
 use crate::OutputDataRate::{ODR_3200_HZ, ODR_1600_HZ};
+use crate::Adxl313Error::WrongId;
 
 const SPI_READ: u8 = 0x01;
 const SPI_WRITE: u8 = 0x00;
@@ -40,13 +41,20 @@ pub struct Adxl313<SPI, CS> {
     output_data_rate: Option<OutputDataRate>
 }
 
-impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
+/// Errors in this crate
+pub enum Adxl313Error<SpiError, PinError> {
+    SpiError(SpiError),
+    PinError(PinError),
+    WrongId
+}
+
+impl<SPI, CS, SpiError, PinError> Adxl313<SPI, CS>
     where
-        SPI: spi::Transfer<u8, Error=E> + spi::Write<u8, Error=E>,
+        SPI: spi::Transfer<u8, Error=SpiError> + spi::Write<u8, Error=SpiError>,
         CS: OutputPin<Error = PinError>
 {
     /// Takes a config object to initialize the adxl313 driver
-    pub fn new(spi:SPI, cs:CS) -> Result<Self, E> {
+    pub fn new(spi:SPI, cs:CS) -> Result<Self, Adxl313Error<SpiError, PinError>> {
         let mut adxl313 = Adxl313 {
             spi,
             cs,
@@ -56,57 +64,54 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
             full_resolution: false
         };
 
-        let id = adxl313.get_device_id();
+        let id = adxl313.get_device_id()?;
 
         if id != EXPECTED_DEVICE_ID {
-            // error
-
+            Err(WrongId)
+        } else {
+            Ok(adxl313)
         }
-
-        Ok(adxl313)
     }
 
     /// The XID register stores a semiunique serial number that is generated from the device trim
     /// and calibration process
-    pub fn xid(&mut self) -> u8 {
-        let mut buffer = [0u8; 1];
-        self.read_reg(Register::XID.addr(), &mut buffer);
-        buffer[0]
+    pub fn xid(&mut self) -> Result<u8, Adxl313Error<SpiError, PinError>> {
+        self.read_reg(Register::XID.addr())
     }
 
     /// Writing a value of 0x52 to Register 0x18 triggers the soft reset function of the ADXL313.
     /// The soft reset returns the ADXL313 to the beginning of its power-on initialization routine,
     /// clearing the configuration settings that were written to the memory map, which allows easy
     /// reconfiguration of the ADXL313 device.
-    pub fn soft_reset(&mut self) {
+    pub fn soft_reset(&mut self) -> Result<(), Adxl313Error<SpiError, PinError>> {
         let val = 0x52;
-        self.write_reg(Register::SOFT_RESET.addr(), val);
+        self.write_reg(Register::SOFT_RESET.addr(), val)
     }
 
     /// The OFSX, OFSY, and OFSZ registers are each eight bits and offer user set offset adjustments
     /// in twos complement format, with a scale factor of 3.9 mg/LSB (that is, 0x7F = 0.5g). The
     /// value stored in the offset registers is automatically added to the acceleration data,
     /// and the resulting value is stored in the output data registers.
-    pub fn offsets(&mut self, offset_x: u8, offset_y: u8, offset_z: u8) {
-        self.write_reg(Register::OFSX.addr(), offset_x);
-        self.write_reg(Register::OFSY.addr(), offset_y);
-        self.write_reg(Register::OFSZ.addr(), offset_z);
+    pub fn offsets(&mut self, offset_x: u8, offset_y: u8, offset_z: u8) -> Result<(), Adxl313Error<SpiError, PinError>> {
+        self.write_reg(Register::OFSX.addr(), offset_x)?;
+        self.write_reg(Register::OFSY.addr(), offset_y)?;
+        self.write_reg(Register::OFSZ.addr(), offset_z)
     }
 
     /// The THRESH_ACT register is eight bits and holds the thresholdvalue for detecting activity.
     /// The data format is unsigned; therefore, the magnitude of the activity event is compared with
     /// the value in the THRESH_ACT register. The scale factor is 15.625 mg/LSB. A value of 0 may
     /// result in undesirable behavior if the activity interrupt is enabled.
-    pub fn activity_threshold(&mut self, threshold: u8) {
-        self.write_reg(Register::THRESH_ACT.addr(), threshold);
+    pub fn activity_threshold(&mut self, threshold: u8) -> Result<(), Adxl313Error<SpiError, PinError>> {
+        self.write_reg(Register::THRESH_ACT.addr(), threshold)
     }
 
     /// The THRESH_INACT register is eight bits and holds the thresholdvalue for detecting
     /// inactivity. The data format is unsigned; therefore, the magnitude of the inactivity event
     /// is compared with the value in the THRESH_INACT register. The scale factor is 15.625 mg/LSB.
     /// A value of 0 may result in undesirable behavior if the inactivity interrupt is enabled.
-    pub fn inactivity_threshold(&mut self, threshold: u8) {
-        self.write_reg(Register::THRESH_INACT.addr(), threshold);
+    pub fn inactivity_threshold(&mut self, threshold: u8) -> Result<(), Adxl313Error<SpiError, PinError>> {
+        self.write_reg(Register::THRESH_INACT.addr(), threshold)
     }
 
     /// The TIME_INACT register is eight bits and contains an unsignedtime value. Acceleration must
@@ -118,8 +123,8 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
     /// the TIME_INACT register is set to a value less than the time constant of the output data
     /// rate. A value of 0 results in an interrupt when the output data is less than the value in
     /// the THRESH_INACT register.
-    pub fn inactivity_time(&mut self, time: u8) {
-        self.write_reg(Register::TIME_INACT.addr(), time);
+    pub fn inactivity_time(&mut self, time: u8) -> Result<(), Adxl313Error<SpiError, PinError>> {
+        self.write_reg(Register::TIME_INACT.addr(), time)
     }
 
     pub fn activity_inactivity_control(
@@ -127,7 +132,7 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
         enable_x_activity: bool, enable_x_inactivity: bool,
         enable_y_activity: bool, enable_y_inactivity: bool,
         enable_z_activity: bool, enable_z_inactivity: bool
-    ) {
+    ) -> Result<(), Adxl313Error<SpiError, PinError>> {
         let val =
             (activity_coupling.val() << 7) +
             (enable_x_activity as u8) << 6 +
@@ -137,15 +142,20 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
             (enable_x_inactivity as u8) << 2 +
             (enable_y_inactivity as u8) << 1 +
             (enable_z_inactivity as u8);
-        self.write_reg(Register::ACT_INACT_CTL.addr(), val);
+        self.write_reg(Register::ACT_INACT_CTL.addr(), val)
     }
 
-    pub fn output_data_rate_and_low_power(&mut self, rate: OutputDataRate, low_power_enabled: bool) {
+    pub fn output_data_rate_and_low_power(
+        &mut self,
+        rate: OutputDataRate,
+        low_power_enabled: bool
+    ) -> Result<(), Adxl313Error<SpiError, PinError>> {
         let val =
             ((low_power_enabled as u8) << 4) +
             rate.val();
-        self.write_reg(Register::BW_RATE.addr(), val);
+        self.write_reg(Register::BW_RATE.addr(), val)?;
         self.output_data_rate = Some(rate);
+        Ok(())
     }
 
     pub fn power_control(
@@ -156,7 +166,7 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
         measuring: bool,
         sleep_enabled: bool,
         sleep_mode_frequency_reading: SleepModeFrequencyReadings
-    ) {
+    ) -> Result<(), Adxl313Error<SpiError, PinError>> {
         let val =
             ((i2c_disabled as u8) << 6) +
             ((concurrent_activity_inactivity as u8) << 5) +
@@ -164,64 +174,70 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
             ((measuring as u8) << 3) +
             ((sleep_enabled as u8) << 2) +
             sleep_mode_frequency_reading.val();
-        self.write_reg(Register::POWER_CTL.addr(), val);
+        self.write_reg(Register::POWER_CTL.addr(), val)
     }
 
-    pub fn interrupt_enable(&mut self, conf: InterruptSource) {
-        self.write_reg(Register::INT_ENABLE.addr(), conf.value);
+    pub fn interrupt_enable(&mut self, conf: InterruptSource) -> Result<(), Adxl313Error<SpiError, PinError>> {
+        self.write_reg(Register::INT_ENABLE.addr(), conf.value)
     }
 
-    pub fn interrupt_pin_mapping(&mut self, conf: InterruptSource) {
-        self.write_reg(Register::INT_MAP.addr(), conf.value);
+    pub fn interrupt_pin_mapping(&mut self, conf: InterruptSource) -> Result<(), Adxl313Error<SpiError, PinError>> {
+        self.write_reg(Register::INT_MAP.addr(), conf.value)
     }
 
-    pub fn interrupt_source(&mut self) -> InterruptSource {
-        let mut buffer = [0u8; 1];
-        self.read_reg(Register::INT_SOURCE.addr(), &mut buffer);
-        InterruptSource {
-            value: buffer[0]
-        }
+    pub fn interrupt_source(&mut self) -> Result<InterruptSource, Adxl313Error<SpiError, PinError>> {
+        self.read_reg(Register::INT_SOURCE.addr()).map(|value| InterruptSource { value} )
     }
 
-    pub fn data_format(&mut self, self_test: bool, spi_mode: SpiMode, irq_mode: IrqMode, full_resolution: bool, left_justified_data: bool, range: Range) {
+    pub fn data_format(
+        &mut self,
+        self_test: bool,
+        spi_mode: SpiMode,
+        irq_mode: IrqMode,
+        full_resolution: bool,
+        left_justified_data: bool,
+        range: Range
+    ) -> Result<(), Adxl313Error<SpiError, PinError>> {
         let val: u8 =
             ((self_test as u8) << 7) +
             (spi_mode.val() << 6) +
             (irq_mode.val() << 5) +
             ((full_resolution as u8) << 3) +
             ((left_justified_data as u8) << 2) + range.val();
-        self.write_reg(Register::DATA_FORMAT.addr(), val);
+        self.write_reg(Register::DATA_FORMAT.addr(), val)?;
         self.range = Some(range);
         self.left_justified_data = left_justified_data;
         self.full_resolution = full_resolution;
+        Ok(())
     }
 
-    pub fn fifo_control(&mut self, fifo_mode: FifoMode, interrupt_to_pin2: bool, samples: u8) {
+    pub fn fifo_control(
+        &mut self,
+        fifo_mode: FifoMode,
+        interrupt_to_pin2: bool,
+        samples: u8
+    ) -> Result<(), Adxl313Error<SpiError, PinError>> {
         let samples = samples & 0b1_1111;
         let val =
             ((fifo_mode as u8) << 6) +
             ((interrupt_to_pin2 as u8) << 5) +
             samples;
-        self.write_reg(Register::FIFO_CTL.addr(), val);
+        self.write_reg(Register::FIFO_CTL.addr(), val)
     }
 
-    pub fn fifo_status(&mut self) -> FifoStatus {
-        let mut buffer = [0u8; 1];
-        self.read_reg(Register::FIFO_STATUS.addr(), &mut buffer);
-        FifoStatus::new(buffer[0])
+    pub fn fifo_status(&mut self) -> Result<FifoStatus, Adxl313Error<SpiError, PinError>> {
+        self.read_reg(Register::FIFO_STATUS.addr()).map(FifoStatus::new)
     }
 
-    pub fn start_measuring(&mut self) {
-        let mut buffer = [0u8; 1];
-        self.read_reg(Register::POWER_CTL.addr(), &mut buffer);
-        let val = buffer[0];
+    pub fn start_measuring(&mut self) -> Result<(), Adxl313Error<SpiError, PinError>> {
+        let val = self.read_reg(Register::POWER_CTL.addr())?;
         if val & 0b0000_0010 != 0 {
             // Device is sleeping. First put into standby mode
-            self.write_reg(Register::POWER_CTL.addr(), val & 0b1111_0111);
+            self.write_reg(Register::POWER_CTL.addr(), val & 0b1111_0111)?;
             // Then put device out of sleep mode
-            self.write_reg(Register::POWER_CTL.addr(), val & 0b1111_1011);
+            self.write_reg(Register::POWER_CTL.addr(), val & 0b1111_1011)?;
         }
-        self.write_reg(Register::POWER_CTL.addr(), val & 0b1111_0011);
+        self.write_reg(Register::POWER_CTL.addr(), val & 0b1111_0011)
     }
 
     pub fn is_10_bit(&self) -> bool {
@@ -229,28 +245,33 @@ impl<SPI, CS, E, PinError> Adxl313<SPI, CS>
     }
 
     /// Get the device ID
-    pub fn get_device_id(&mut self) -> u32 {
-        let mut output = [0u8; 3];
+    pub fn get_device_id(&mut self) -> Result<u32, Adxl313Error<SpiError, PinError>> {
         // Read 3 bytes
-        self.read_reg(Register::DEVID_0.addr(), &mut output);
-        ((output[0] as u32) << 16)
-            | ((output[1] as u32) << 8)
-            | (output[0] as u32)
+        let mut bytes = [(Register::DEVID_0.addr() << 1)  | SPI_READ, 0, 0, 0];
+        self.cs.set_low().map_err(Adxl313Error::PinError)?;
+        self.spi.transfer(&mut bytes).map_err(Adxl313Error::SpiError)?;
+        self.cs.set_high().map_err(Adxl313Error::PinError)?;
+
+        Ok(
+            ((bytes[1] as u32) << 16)
+            | ((bytes[2] as u32) << 8)
+            | (bytes[3] as u32)
+        )
     }
 
-    fn write_reg(&mut self, reg: u8, value: u8) {
+    fn write_reg(&mut self, reg: u8, value: u8) -> Result<(), Adxl313Error<SpiError, PinError>> {
         let mut bytes = [(reg << 1)  | SPI_WRITE, value];
-        self.cs.set_low().ok();
-        self.spi.write(&mut bytes).ok();
-        self.cs.set_high().ok();
+        self.cs.set_low().map_err(Adxl313Error::PinError)?;
+        self.spi.write(&mut bytes).map_err(Adxl313Error::SpiError)?;
+        self.cs.set_high().map_err(Adxl313Error::PinError)
     }
 
-    fn read_reg(&mut self, reg: u8, buffer: &mut [u8]) {
+    fn read_reg(&mut self, reg: u8) -> Result<u8, Adxl313Error<SpiError, PinError>> {
         let mut bytes = [(reg << 1)  | SPI_READ, 0];
-        self.cs.set_low().ok();
-        self.spi.transfer(&mut bytes).ok();
-        self.cs.set_high().ok();
-        buffer[0] = bytes[1];
+        self.cs.set_low().map_err(Adxl313Error::PinError)?;
+        self.spi.transfer(&mut bytes).map_err(Adxl313Error::SpiError)?;
+        self.cs.set_high().map_err(Adxl313Error::PinError)?;
+        Ok(bytes[1])
     }
 
     fn read(&mut self, bytes: &mut [u8]) {
