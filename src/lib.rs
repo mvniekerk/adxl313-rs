@@ -53,7 +53,7 @@ impl<SPI, CS, SpiError, PinError> Adxl313<SPI, CS>
         SPI: spi::Transfer<u8, Error=SpiError> + spi::Write<u8, Error=SpiError>,
         CS: OutputPin<Error = PinError>
 {
-    /// Takes a config object to initialize the adxl313 driver
+    /// Create a new Adxl313 instance using the defaults
     pub fn new(spi:SPI, cs:CS) -> Result<Self, Adxl313Error<SpiError, PinError>> {
         let mut adxl313 = Adxl313 {
             spi,
