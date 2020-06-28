@@ -42,6 +42,7 @@ pub struct Adxl313<SPI, CS> {
 }
 
 /// Errors in this crate
+#[derive(Debug, PartialEq, Clone)]
 pub enum Adxl313Error<SpiError, PinError> {
     SpiError(SpiError),
     PinError(PinError),
