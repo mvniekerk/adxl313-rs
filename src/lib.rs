@@ -65,6 +65,13 @@ impl<SPI, CS, SpiError, PinError> Adxl313<SPI, CS>
             full_resolution: false
         };
 
+        adxl313.power_control(
+            true, false, false, false, false, SleepModeFrequencyReadings::_1_HZ
+        );
+        adxl313.data_format(
+            false, SpiMode::_4_WIRE, IrqMode::ACTIVE_LOW, false, false, Range::_0d5G
+        );
+
         let id = adxl313.get_device_id()?;
 
         if id != EXPECTED_DEVICE_ID {
@@ -247,28 +254,26 @@ impl<SPI, CS, SpiError, PinError> Adxl313<SPI, CS>
 
     /// Get the device ID
     pub fn get_device_id(&mut self) -> Result<u32, Adxl313Error<SpiError, PinError>> {
-        // Read 3 bytes
-        let mut bytes = [(Register::DEVID_0.addr() << 1)  | SPI_READ, 0, 0, 0];
-        self.cs.set_low().map_err(Adxl313Error::PinError)?;
-        self.spi.transfer(&mut bytes).map_err(Adxl313Error::SpiError)?;
-        self.cs.set_high().map_err(Adxl313Error::PinError)?;
+        let dev0 = self.read_reg(Register::DEVID_0.addr())?;
+        let dev1 = self.read_reg(Register::DEVID_1.addr())?;
+        let part_id = self.read_reg(Register::PARTID.addr())?;
 
         Ok(
-            ((bytes[1] as u32) << 16)
-            | ((bytes[2] as u32) << 8)
-            | (bytes[3] as u32)
+            ((dev0 as u32) << 16)
+                | ((dev1 as u32) << 8)
+                | (part_id as u32)
         )
     }
 
     fn write_reg(&mut self, reg: u8, value: u8) -> Result<(), Adxl313Error<SpiError, PinError>> {
-        let mut bytes = [(reg << 1)  | SPI_WRITE, value];
+        let mut bytes = [reg, value];
         self.cs.set_low().map_err(Adxl313Error::PinError)?;
         self.spi.write(&mut bytes).map_err(Adxl313Error::SpiError)?;
         self.cs.set_high().map_err(Adxl313Error::PinError)
     }
 
     fn read_reg(&mut self, reg: u8) -> Result<u8, Adxl313Error<SpiError, PinError>> {
-        let mut bytes = [(reg << 1)  | SPI_READ, 0];
+        let mut bytes = [reg | SPI_READ, 0];
         self.cs.set_low().map_err(Adxl313Error::PinError)?;
         self.spi.transfer(&mut bytes).map_err(Adxl313Error::SpiError)?;
         self.cs.set_high().map_err(Adxl313Error::PinError)?;
