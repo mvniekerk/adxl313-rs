@@ -67,10 +67,10 @@ impl<SPI, CS, SpiError, PinError> Adxl313<SPI, CS>
 
         adxl313.power_control(
             true, false, false, false, false, SleepModeFrequencyReadings::_1_HZ
-        );
+        )?;
         adxl313.data_format(
             false, SpiMode::_4_WIRE, IrqMode::ACTIVE_LOW, false, false, Range::_0d5G
-        );
+        )?;
 
         let id = adxl313.get_device_id()?;
 
