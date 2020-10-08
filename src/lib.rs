@@ -17,7 +17,7 @@ use register::Register;
 use crate::OutputDataRate::{ODR_3200_HZ, ODR_1600_HZ};
 use crate::Adxl313Error::WrongId;
 
-const SPI_READ: u8 = 0x01;
+const SPI_READ: u8 = 0x80;
 const SPI_WRITE: u8 = 0x00;
 
 const EXPECTED_DEVID_0: u8 = 0xad;
@@ -73,7 +73,7 @@ impl<SPI, CS, SpiError, PinError> Adxl313<SPI, CS>
         )?;
 
         let id = adxl313.get_device_id()?;
-
+        // let id = 0;
         if id != EXPECTED_DEVICE_ID {
             Err(WrongId)
         } else {
@@ -254,7 +254,18 @@ impl<SPI, CS, SpiError, PinError> Adxl313<SPI, CS>
 
     /// Get the device ID
     pub fn get_device_id(&mut self) -> Result<u32, Adxl313Error<SpiError, PinError>> {
-        let dev0 = self.read_reg(Register::DEVID_0.addr())?;
+
+        // loop {
+        //     let dev0 = self.read_reg(Register::DEVID_0.addr())?;
+        //     // }
+        //     // let dev0 = 0u8;
+        //     let dev1 = self.read_reg(Register::DEVID_1.addr())?;
+        //     let part_id = self.read_reg(Register::PARTID.addr())?;
+        // }
+        // loop {
+            let dev0 = self.read_reg(Register::DEVID_0.addr())?;
+        // }
+        // let dev0 = 0u8;
         let dev1 = self.read_reg(Register::DEVID_1.addr())?;
         let part_id = self.read_reg(Register::PARTID.addr())?;
 
